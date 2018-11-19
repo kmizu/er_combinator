@@ -1,8 +1,12 @@
 -module(er_combinator).
 
+%% Macros
+-define(rule(Block), (fun(Input) -> (Block)(Input) end)). 
+
+
 
 %% API exports
--export([literal/1, s/1, alt/2, seq/2, rep/1, rule/1, map/2, chainl/2, regex/1]).
+-export([literal/1, s/1, alt/2, seq/2, rep/1, map/2, chainl/2, regex/1]).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -67,12 +71,6 @@ rep(X) ->
                         {success, Values, Next}
         end.
 
-%% function for parsing rule
-rule(Block) ->
-        fun(Input) ->
-                        (Block())(Input)
-        end.
-
 %% map combinator
 map(Parser, F) ->
         fun(Input) ->
@@ -107,86 +105,71 @@ loop(Parser, Rest, Results) ->
                 {failure, _, Next} -> {success, lists:reverse(Results), Next}
         end.
 
-e() -> rule(
-         fun() -> 
-                         a()
+e() -> ?rule(a()).
+a() -> ?rule(
+          chainl(
+            m(),
+            alt(
+              map(s("+"), 
+                  fun(_) ->
+                                  fun (Lhs, Rhs) -> 
+                                                  Lhs + Rhs 
+                                  end
+                  end
+                 ),
+              map(s("-"), 
+                  fun(_) ->
+                                  fun (Lhs, Rhs) -> 
+                                                  Lhs - Rhs 
+                                  end
+                  end
+                 )
+             )
+           )
+        ).
+
+
+m() -> ?rule(
+          chainl(
+            p(),
+            alt(
+              map(s("*"), 
+                  fun(_) ->
+                                  fun (Lhs, Rhs) -> 
+                                                  Lhs * Rhs 
+                                  end
+                  end
+                 ),
+              map(s("/"), 
+                  fun(_) ->
+                                  fun (Lhs, Rhs) -> 
+                                                  Lhs div Rhs 
+                                  end
+                  end
+                 )
+             )
+           )
+        ).
+
+p() -> ?rule(
+          alt(
+            map(
+              seq(seq(s("("), e()), s(")")),
+              fun(Result) ->
+                              {{"(", V}, ")"} = Result,
+                              V
+              end
+             ),
+            n()
+           )
+        ).
+
+n() -> map(
+         regex("[0-9]+"),
+         fun(V1) ->
+                         V2 = list_to_integer(V1),
+                         V2
          end
-       ).
-
-a() ->
-        rule(
-          fun() ->
-                          chainl(
-                            m(),
-                            alt(
-                              map(s("+"), 
-                                  fun(_) ->
-                                                  fun (Lhs, Rhs) -> 
-                                                                  Lhs + Rhs 
-                                                  end
-                                  end
-                              ),
-                              map(s("-"), 
-                                  fun(_) ->
-                                                  fun (Lhs, Rhs) -> 
-                                                                  Lhs - Rhs 
-                                                  end
-                                  end
-                              )
-                            )
-                          )
-          end
-        ).
-
-
-m() ->
-        rule(
-          fun() ->
-                          chainl(
-                            p(),
-                            alt(
-                              map(s("*"), 
-                                  fun(_) ->
-                                                  fun (Lhs, Rhs) -> 
-                                                                  Lhs * Rhs 
-                                                  end
-                                  end
-                              ),
-                              map(s("/"), 
-                                  fun(_) ->
-                                                  fun (Lhs, Rhs) -> 
-                                                                  Lhs div Rhs 
-                                                  end
-                                  end
-                              )
-                            )
-                          )
-          end
-        ).
-
-p() ->
-        rule(
-          fun() ->
-                          alt(
-                            map(
-                              seq(seq(s("("), e()), s(")")),
-                              fun(Result) ->
-                                              {{"(", V}, ")"} = Result,
-                                              V
-                              end
-                            ),
-                            n()
-                          )
-          end
-        ).
-
-n() ->
-        map(
-          regex("[0-9]+"),
-          fun(V1) ->
-                          V2 = list_to_integer(V1),
-                          V2
-          end
         ).
 %%====================================================================
 %%
